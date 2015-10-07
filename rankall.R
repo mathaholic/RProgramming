@@ -1,62 +1,46 @@
-rankall <- function(outcome, num = "best"){
+rankall <- function(outcome, num = "best") {
+  ## Read outcome data
+  measures <- read.csv("outcome-of-care-measures.csv", colClasses = "character")
   
-  ##read in our data frame, states, and conditions
-  mydata <- read.csv("outcome-of-care-measures.csv", colClasses = "character", na.strings = c("Not Available"))
-  
-  ##throw out the irrelevant crap, to make things easier
-  allinfo <- mydata[ ,c(2,7,11,17,23)]
-  
-  ##create a character vector of allowed outcomes
-  conditions <- c("heart attack", "heart failure", "pneumonia")
-  
-  ##define best as the number 1.  Can't do that for worst, since worst is unique to each state
-  if(num == "best"){num <- 1}
-  
-  ##create a data frame for each state's entry to go into
-  sol <- data.frame()
-  
-  ## split allinfo by state
-  ##bystate <- split(allinfo, allinfo$State)
-  
-  if(outcome %in% conditions){
-    
-    ###meat of program goes here
-    
-    if(outcome == "heart attack"){
-      ##create a for loop that populates the sol data frame
-      info <- allinfo[,c(1,2,3)]
-      bystate <- split(info, info$State)
-      for(i in length(bystate)){
-        ##clean up data
-        a <- as.data.frame(bystate[i])
-        good <- complete.cases(a)
-        gooda <- a[good,]
-        b <- gooda[order(as.numeric(gooda[,3]),gooda[,1]),]
-        ##now that we have out cleaned data, we can start getting what we want out of it
-        ##  Things we want: 1. to populate the ith row of sol with the name and state of the hospital requested
-        if(num == "worst"){num <- nrow(b)}
-        if(num <= nrow(b)){
-          sol <-rbind(sol, c(b[num,1],b[1,2]))
-        }else{
-          sol <-rbind(sol, c("NA",b[1,2]))}
-        
-      }
-      colnames(sol) <- c("hospital", "state")
-      print(sol)
-      }
-          
-    else if(outcome == "heart failure"){
-          ##dostuff
-          
-    }else if(outcome == "pneumonia"){
-          ##dostuff
-          
-    }
-  }
-  else {
+  ## Check that state and outcome are valid
+  # no state, just outcome . . .
+  validOutcomes = c("heart attack", "heart failure", "pneumonia")
+  if(!is.element(outcome, validOutcomes)) {
     stop("invalid outcome")
+  } else if (outcome == "heart attack") { # if valid, pick column corresponding to outcome
+    thecolumn = 11 # Hospital.30.Day.Death..Mortality..Rates.from.Heart.Attack
+  } else if (outcome == "heart failure") {
+    thecolumn = 17 # Hospital.30.Day.Death..Mortality..Rates.from.Heart.Failure
+  } else {
+    thecolumn = 23 # Hospital.30.Day.Death..Mortality..Rates.from.Pneumonia
   }
-          
+  
+  
+  ## For each state, find the hospital of the given rank
+  ## Return a data frame with the hospital names and the
+  ## (abbreviated) state name
+  measures[, thecolumn] <- as.numeric(measures[, thecolumn]) # cast the needed column to numeric
+  all_states <- unique(measures[,7]) # create list of all states
+  all_states <- sort(all_states) # sort alphabetically
+  # the_dataframe <- colnames(measures[0,c(2,7)]) # start with an empty data.frame
+  the_dataframe <- data.frame(hospital=character(), state=character()) # start with an empty data.frame
+  for (state in all_states) {
+    measures_thestate <- measures[measures$State == state,][c(2,thecolumn)]
+    # order by 2d column, then by 1st column
+    measures_thestate <- measures_thestate[order(measures_thestate[2], measures_thestate[1], na.last = NA), ]
+    # choose what to return
+    hospital <- if (num == "best") {
+      measures_thestate[1,1]
+    } else if (num == "worst") {
+      measures_thestate[nrow(measures_thestate),1]
+    } else if ( as.numeric(num) > nrow(measures_thestate) ) {
+      NA
+    } else {
+      measures_thestate[as.numeric(num), 1]
     } 
-    
-          
+    # append to data.frame to be returned
+    the_dataframe <- rbind(the_dataframe, data.frame(hospital, state))
+  }
+  the_dataframe # the return data.frame  
+}
+
